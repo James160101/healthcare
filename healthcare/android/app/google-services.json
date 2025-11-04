@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "110676914823",
+    "firebase_url": "https://cardiaque-cdfa4-default-rtdb.firebaseio.com",
+    "project_id": "cardiaque-cdfa4",
+    "storage_bucket": "cardiaque-cdfa4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:110676914823:android:f65138af0e1f823f493e22",
+        "android_client_info": {
+          "package_name": "com.example.healthcare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfQSI9v9S1gd-1IYI7jJuC0vkeoNOlky4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
