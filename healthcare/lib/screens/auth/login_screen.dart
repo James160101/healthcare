@@ -35,9 +35,10 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text.trim(),
       );
       
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
-      }
+      // La navigation est maintenant gérée par AuthWrapper, donc la ligne ci-dessous est supprimée.
+      // if (mounted) {
+      //   Navigator.pushReplacementNamed(context, '/home');
+      // }
 
     } catch (e) {
       if (mounted) {

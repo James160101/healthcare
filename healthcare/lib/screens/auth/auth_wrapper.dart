@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart'; // Ajout de l'import Provider
 import '../../services/firebase_service.dart';
 import 'login_screen.dart';
-import '../main_screen.dart'; // Modifié pour pointer vers MainScreen
+import '../main_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final firebaseService = FirebaseService();
+    // Correction: Utilisation de l'instance de FirebaseService fournie par Provider
+    final firebaseService = Provider.of<FirebaseService>(context, listen: false);
 
     return StreamBuilder<User?>(
       stream: firebaseService.authStateChanges,
