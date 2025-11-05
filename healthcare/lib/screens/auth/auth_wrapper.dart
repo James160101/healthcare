@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/firebase_service.dart';
 import 'login_screen.dart';
-import '../home_screen.dart'; // Votre écran principal
+import '../main_screen.dart'; // Modifié pour pointer vers MainScreen
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -14,7 +14,6 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: firebaseService.authStateChanges,
       builder: (context, snapshot) {
-        // En attente de vérification
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
@@ -23,12 +22,10 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
-        // Utilisateur connecté
         if (snapshot.hasData && snapshot.data != null) {
-          return const HomeScreen(); // Votre écran d'accueil
+          return const MainScreen(); // Redirige vers MainScreen
         }
 
-        // Utilisateur non connecté
         return const LoginScreen();
       },
     );
