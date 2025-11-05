@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // Import pour la localisation
 import 'package:provider/provider.dart';
 import 'services/firebase_service.dart';
 import 'providers/theme_provider.dart';
@@ -33,6 +34,18 @@ class MyApp extends StatelessWidget {
             title: 'Surveillance Cardiaque',
             debugShowCheckedModeBanner: false,
             themeMode: themeProvider.themeMode,
+            // Configuration de la localisation
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [
+              Locale('fr', 'FR'), // Français
+              Locale('en', 'US'), // Anglais (en fallback)
+            ],
+            locale: const Locale('fr'), // Forcer l'utilisation du français
+
             theme: ThemeData(
               primarySwatch: Colors.blue,
               useMaterial3: true,

@@ -26,4 +26,16 @@ class Alert {
           : AlertLevel.Warning,
     );
   }
+
+  // Ajout de la méthode toMap pour la sérialisation vers Firebase
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      // Enregistrement du timestamp en secondes, comme le reste des données
+      'timestamp': timestamp.millisecondsSinceEpoch ~/ 1000,
+      'type': type,
+      'message': message,
+      'level': level.name.toLowerCase(), // 'critical' ou 'warning'
+    };
+  }
 }

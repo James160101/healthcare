@@ -34,11 +34,8 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
-      
-      // La navigation est maintenant gérée par AuthWrapper, donc la ligne ci-dessous est supprimée.
-      // if (mounted) {
-      //   Navigator.pushReplacementNamed(context, '/home');
-      // }
+      // Si la connexion réussit, AuthWrapper s'occupe de la navigation.
+      // L'écran sera remplacé, donc l'état de _isLoading n'importera plus.
 
     } catch (e) {
       if (mounted) {
@@ -48,9 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
             backgroundColor: Colors.red,
           ),
         );
-      }
-    } finally {
-      if (mounted) {
+        // En cas d'erreur, on arrête le chargement pour que l'utilisateur puisse réessayer.
         setState(() => _isLoading = false);
       }
     }
@@ -68,7 +63,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      // Correction: Utiliser le service via Provider
       await context.read<FirebaseService>().resetPassword(_emailController.text.trim());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

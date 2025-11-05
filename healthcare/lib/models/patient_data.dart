@@ -11,7 +11,6 @@ class PatientData {
 
   factory PatientData.fromMap(Map<String, dynamic> map) {
     return PatientData(
-      // Correction: Multiplier par 1000 si le timestamp est en secondes
       timestamp: (map.containsKey('timestamp') && map['timestamp'] is int)
           ? DateTime.fromMillisecondsSinceEpoch((map['timestamp'] as int) * 1000)
           : DateTime.now(),
@@ -45,6 +44,7 @@ class PatientData {
   }
 
   bool get isCritical {
-    return heartRate > 120 || spo2 < 90;
+    // Rétablissement de la logique originale
+    return heartRate > 120 || spo2 < 90; 
   }
 }

@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   cupertino_icons: ^1.0.8
   
@@ -23,8 +25,10 @@ dependencies:
   curved_navigation_bar: ^1.0.3
   fl_chart: ^0.66.0
   image_picker: ^1.0.7
-  intl: ^0.19.0
+  intl: any # Gardons ceci flexible pour l'instant
   provider: ^6.1.1
+  # Mise à jour vers la version compatible suggérée
+  syncfusion_flutter_gauges: ^31.2.5
 
 dev_dependencies:
   flutter_test:
