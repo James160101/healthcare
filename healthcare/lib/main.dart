@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_localizations/flutter_localizations.dart'; // Import pour la localisation
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'services/firebase_service.dart';
 import 'providers/theme_provider.dart';
@@ -23,6 +23,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF00A8FF);
+
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => FirebaseService()),
@@ -34,36 +36,41 @@ class MyApp extends StatelessWidget {
             title: 'Surveillance Cardiaque',
             debugShowCheckedModeBanner: false,
             themeMode: themeProvider.themeMode,
-            // Configuration de la localisation
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
             ],
             supportedLocales: const [
-              Locale('fr', 'FR'), // Français
-              Locale('en', 'US'), // Anglais (en fallback)
+              Locale('fr', 'FR'),
+              Locale('en', 'US'),
             ],
-            locale: const Locale('fr'), // Forcer l'utilisation du français
+            locale: const Locale('fr'),
 
+            // Nouveau thème basé sur la couleur du login
             theme: ThemeData(
-              primarySwatch: Colors.blue,
               useMaterial3: true,
-              brightness: Brightness.light,
               colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blue,
+                seedColor: primaryColor,
                 brightness: Brightness.light,
+                primary: primaryColor,
+              ),
+              scaffoldBackgroundColor: Colors.white,
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Colors.white,
+                elevation: 0,
+                foregroundColor: Colors.black87,
               ),
             ),
             darkTheme: ThemeData(
-              primarySwatch: Colors.blue,
-              useMaterial3: true,
-              brightness: Brightness.dark,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blue,
+               useMaterial3: true,
+               colorScheme: ColorScheme.fromSeed(
+                seedColor: primaryColor,
                 brightness: Brightness.dark,
+                primary: primaryColor,
               ),
             ),
+
             home: const AuthWrapper(),
             routes: {
               '/login': (context) => const LoginScreen(),

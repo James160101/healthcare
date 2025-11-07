@@ -25,9 +25,8 @@ dependencies:
   curved_navigation_bar: ^1.0.3
   fl_chart: ^0.66.0
   image_picker: ^1.0.7
-  intl: any # Gardons ceci flexible pour l'instant
+  intl: any
   provider: ^6.1.1
-  # Mise à jour vers la version compatible suggérée
   syncfusion_flutter_gauges: ^31.2.5
 
 dev_dependencies:
@@ -37,3 +36,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Ajout de la section assets pour l'illustration
+  assets:
+    - assets/doctor_illustration.jpg

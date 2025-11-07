@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'home_screen.dart';
@@ -27,6 +26,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       bottomNavigationBar: CurvedNavigationBar(
         index: 0,
@@ -34,12 +35,13 @@ class _MainScreenState extends State<MainScreen> {
         items: const <Widget>[
           Icon(Icons.home, size: 30),
           Icon(Icons.history, size: 30),
-          Icon(Icons.monitor_heart, size: 30),
+          Icon(Icons.show_chart, size: 30), // Icône mise à jour
           Icon(Icons.notifications, size: 30),
           Icon(Icons.person, size: 30),
         ],
-        color: Theme.of(context).colorScheme.surface,
-        buttonBackgroundColor: Theme.of(context).colorScheme.primary,
+        // Style mis à jour pour correspondre au thème
+        color: Colors.white,
+        buttonBackgroundColor: primaryColor, // Bleu du thème
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         animationCurve: Curves.easeInOut,
         animationDuration: const Duration(milliseconds: 600),
