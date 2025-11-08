@@ -1,89 +1,82 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import 'dart:async';
-import 'package:fl_chart/fl_chart.dart'; // Assurez-vous que fl_chart est importé
+import 'package:fl_chart/fl_chart.dart';
+import 'package:syncfusion_flutter_gauges/gauges.dart';
 import '../services/firebase_service.dart';
 import '../models/patient_data.dart';
-import '../widgets/vital_card.dart';
 
-class RealTimeMonitor extends StatefulWidget {
+class RealTimeMonitor extends StatelessWidget {
   const RealTimeMonitor({super.key});
-
-  @override
-  State<RealTimeMonitor> createState() => _RealTimeMonitorState();
-}
-
-class _RealTimeMonitorState extends State<RealTimeMonitor>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
-
-  Color _getStatusColor(PatientData data) {
-    if (data.isCritical) return Colors.red;
-    if (!data.isNormal) return Colors.orange;
-    return Colors.green;
-  }
-
-  String _getTimeSinceUpdate(DateTime lastUpdate) {
-    final duration = DateTime.now().difference(lastUpdate);
-    if (duration.inSeconds < 2) return 'à l\'instant';
-    if (duration.inSeconds < 60) return 'il y a ${duration.inSeconds} sec';
-    if (duration.inMinutes < 60) return 'il y a ${duration.inMinutes} min';
-    return 'il y a ${duration.inHours} h';
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Monitoring Temps Réel'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => context.read<FirebaseService>().loadHistory(),
-          ),
-        ],
+        title: const Text('Moniteur temps réel'),
       ),
       body: Consumer<FirebaseService>(
         builder: (context, service, _) {
           if (service.isLoading && service.historyData.isEmpty) {
-            return _buildWaitingState("Chargement...");
-          }
-          if (service.error != null) {
-            return _buildErrorState(service.error!);
-          }
-          if (service.historyData.isEmpty) {
-            return _buildWaitingState("En attente de données...");
+            return _buildWaitingState("Chargement des données...");
           }
 
+          if (service.error != null) {
+            return _buildErrorState(context, service.error!);
+          }
+
+          if (service.patientId == null || service.historyData.isEmpty) {
+            return _buildWaitingState(service.patientId == null
+                ? "Veuillez sélectionner un patient."
+                : "En attente des données du patient...");
+          }
+
+          final history = service.historyData;
           final latest = service.latestData!;
 
-          return RefreshIndicator(
-            onRefresh: () => service.loadHistory(),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
-                children: [
-                  _buildAnimatedHeader(latest),
-                  _buildVitalCards(latest),
-                  _buildTrendsChart(service.historyData), // Le nouveau graphique
-                ],
-              ),
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildEcgChart(context, history),
+                const SizedBox(height: 32),
+                SizedBox(
+                  height: 250,
+                  child: _buildSpo2Gauge(context, latest),
+                ),
+                const SizedBox(height: 32),
+                Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildRealTimeValueText(
+                          context,
+                          label: 'BPM',
+                          value: latest.heartRate.toString(),
+                          icon: Icons.favorite,
+                          color: Colors.red,
+                        ),
+                        _buildRealTimeValueText(
+                          context,
+                          label: 'SpO2',
+                          value: '${latest.spo2.toStringAsFixed(0)} %',
+                          icon: Icons.opacity,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildStatusIndicator(latest.heartRateStatus),
+                        _buildStatusIndicator(latest.spo2Status),
+                      ],
+                    ),
+                  ],
+                )
+              ],
             ),
           );
         },
@@ -91,140 +84,160 @@ class _RealTimeMonitorState extends State<RealTimeMonitor>
     );
   }
 
-  Widget _buildAnimatedHeader(PatientData data) {
-    final statusColor = _getStatusColor(data);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
-      ),
-      child: Column(
-        children: [
-          AnimatedBuilder(
-            animation: _pulseController,
-            builder: (context, child) => Transform.scale(
-              scale: 1.0 + (_pulseController.value * 0.1),
-              child: Icon(Icons.favorite, size: 60, color: statusColor),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            data.status,
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: statusColor),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _getTimeSinceUpdate(data.timestamp),
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-          Text(
-            DateFormat('HH:mm:ss - dd/MM/yyyy').format(data.timestamp),
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildEcgChart(BuildContext context, List<PatientData> history) {
+    final recentHistory = history.take(60).toList().reversed.toList();
 
-  Widget _buildVitalCards(PatientData data) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: VitalCard(icon: Icons.favorite, iconColor: Colors.red, label: 'Fréquence Cardiaque', value: data.heartRate.toString(), unit: 'BPM', status: data.heartRateStatus, statusColor: data.heartRateStatus == 'Normal' ? Colors.green : Colors.orange)),
-              const SizedBox(width: 12),
-              Expanded(child: VitalCard(icon: Icons.opacity, iconColor: Colors.blue, label: 'Saturation O₂', value: data.spo2.toStringAsFixed(1), unit: '%', status: data.spo2Status, statusColor: data.spo2Status == 'Normal' ? Colors.green : Colors.orange)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _buildIndicatorCard('Plage Normale BPM', '60-100', Icons.trending_flat, Colors.green)),
-              const SizedBox(width: 12),
-              Expanded(child: _buildIndicatorCard('Plage Normale SpO₂', '95-100%', Icons.trending_up, Colors.blue)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIndicatorCard(String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Fréquence cardiaque',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 200,
+          child: LineChart(
+            LineChartData(
+              minY: 40,
+              maxY: 180,
+              gridData: FlGridData(
+                show: true,
+                getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.2), strokeWidth: 1),
+                drawVerticalLine: false,
+              ),
+              titlesData: FlTitlesData(
+                show: true,
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (value, meta) => Text('${value.toInt()}', style: const TextStyle(fontSize: 10)))),
+                bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 22, interval: 20, getTitlesWidget: (value, meta) => Text('${value.toInt()}s', style: const TextStyle(fontSize: 10)))),
+              ),
+              borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.5))),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: [
+                    for (int i = 0; i < recentHistory.length; i++)
+                      FlSpot(i.toDouble(), recentHistory[i].heartRate.toDouble())
+                  ],
+                  isCurved: false,
+                  isStepLineChart: true,
+                  color: Theme.of(context).colorScheme.primary,
+                  barWidth: 2,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(show: false),
+                ),
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpo2Gauge(BuildContext context, PatientData data) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return SfRadialGauge(
+      axes: <RadialAxis>[
+        RadialAxis(
+          minimum: 80,
+          maximum: 100,
+          interval: 5,
+          axisLabelStyle: const GaugeTextStyle(fontSize: 12),
+          ranges: <GaugeRange>[
+            GaugeRange(startValue: 80, endValue: 90, color: Colors.red.shade300),
+            GaugeRange(startValue: 90, endValue: 95, color: Colors.orange.shade300),
+            GaugeRange(startValue: 95, endValue: 100, color: Colors.green.shade300),
+          ],
+          pointers: <GaugePointer>[
+            NeedlePointer(
+              value: data.spo2,
+              enableAnimation: true,
+              animationType: AnimationType.ease,
+              needleStartWidth: 1,
+              needleEndWidth: 5,
+              needleColor: Theme.of(context).colorScheme.onSurface,
+              knobStyle: KnobStyle(
+                knobRadius: 0.08,
+                color: Theme.of(context).colorScheme.surface,
+                borderColor: Theme.of(context).colorScheme.onSurface,
+                borderWidth: 0.02,
+              ),
+            )
+          ],
+          annotations: <GaugeAnnotation>[
+            GaugeAnnotation(
+              widget: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'SPO2',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryColor),
+                  ),
+                  Text(
+                    '${data.spo2.toStringAsFixed(0)}%',
+                    style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              angle: 90,
+              positionFactor: 0.7,
+            )
+          ],
+        )
+      ],
+    );
+  }
+
+  Widget _buildRealTimeValueText(BuildContext context, {
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return RichText(
+      textAlign: TextAlign.center,
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 24,
+          color: Theme.of(context).textTheme.bodyLarge?.color,
+          fontWeight: FontWeight.w300,
+        ),
+        children: [
+          TextSpan(text: '$label : '),
+          TextSpan(
+            text: value,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          WidgetSpan(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8.0),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            alignment: PlaceholderAlignment.middle,
+          ),
         ],
       ),
     );
   }
 
-  // Nouveau graphique des tendances en barres
-  Widget _buildTrendsChart(List<PatientData> history) {
-    final recentData = history.take(20).toList().reversed.toList();
+  Widget _buildStatusIndicator(String status) {
+    final isNormal = status == 'Normal';
+    final color = isNormal ? Colors.green : Colors.orange;
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Tendances (20 dernières mesures)',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                height: 120,
-                child: BarChart(
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    maxY: 180, // Limite supérieure pour le BPM
-                    minY: 40,   // Limite inférieure pour le BPM
-                    gridData: const FlGridData(show: false),
-                    borderData: FlBorderData(show: false),
-                    titlesData: const FlTitlesData(show: false),
-                    barGroups: recentData.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final data = entry.value;
-                      final isCritical = data.heartRate < 60 || data.heartRate > 100;
-
-                      return BarChartGroupData(
-                        x: index,
-                        barRods: [
-                          BarChartRodData(
-                            toY: data.heartRate.toDouble(),
-                            color: isCritical ? Colors.redAccent : Colors.greenAccent,
-                            width: 8,
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ],
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
         ),
       ),
     );
@@ -232,31 +245,37 @@ class _RealTimeMonitorState extends State<RealTimeMonitor>
 
   Widget _buildWaitingState(String message) {
     return Center(
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const CircularProgressIndicator(),
-        const SizedBox(height: 16),
-        Text(message, style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
-      ]),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text(message, style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
+        ],
+      ),
     );
   }
 
-  Widget _buildErrorState(String error) {
+  Widget _buildErrorState(BuildContext context, String error) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.red),
-          const SizedBox(height: 16),
-          Text('Erreur', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
-          const SizedBox(height: 8),
-          Text(error, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => context.read<FirebaseService>().loadHistory(),
-            icon: const Icon(Icons.refresh),
-            label: const Text('Réessayer'),
-          ),
-        ]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text('Erreur', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+            const SizedBox(height: 8),
+            Text(error, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => context.read<FirebaseService>().loadHistory(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Réessayer'),
+            ),
+          ],
+        ),
       ),
     );
   }

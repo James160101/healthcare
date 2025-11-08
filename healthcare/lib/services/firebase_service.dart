@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/doctor.dart';
+import '../models/patient.dart';
 import '../models/patient_data.dart';
 import '../models/alert.dart';
 
@@ -15,6 +16,7 @@ class FirebaseService extends ChangeNotifier {
 
   StreamSubscription? _historySubscription;
   StreamSubscription? _alertsSubscription;
+  StreamSubscription? _patientsSubscription;
 
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -23,6 +25,9 @@ class FirebaseService extends ChangeNotifier {
   Doctor? get currentDoctor => _currentDoctor;
 
   String? patientId;
+
+  List<Patient> _patients = [];
+  List<Patient> get patients => _patients;
 
   PatientData? _latestData;
   List<PatientData> _historyData = [];
@@ -43,13 +48,16 @@ class FirebaseService extends ChangeNotifier {
   Future<void> _onAuthStateChanged(User? user) async {
     _historySubscription?.cancel();
     _alertsSubscription?.cancel();
+    _patientsSubscription?.cancel();
 
     if (user == null) {
       _currentDoctor = null;
       patientId = null;
       _clearPatientData();
+      _patients = [];
     } else {
       await _fetchDoctorProfile(user.uid);
+      listenToPatients();
     }
     notifyListeners();
   }
@@ -71,6 +79,35 @@ class FirebaseService extends ChangeNotifier {
     _latestData = null;
     _alerts = [];
     _error = null;
+  }
+
+  Future<void> addPatient(Patient patient) async {
+    try {
+      DatabaseReference ref = _database.ref('patients').push();
+      await ref.set(patient.toMap());
+      notifyListeners(); // Notifie les listeners pour mettre à jour l'interface
+    } catch (e) {
+      _error = "Failed to add patient: $e";
+      notifyListeners();
+    }
+  }
+
+  void listenToPatients() {
+    _patientsSubscription?.cancel();
+    _patientsSubscription = _database.ref('patients').onValue.listen((event) {
+      if (event.snapshot.exists && event.snapshot.value != null) {
+        final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+        _patients = data.entries.map((entry) {
+          return Patient.fromMap(entry.key, Map<String, dynamic>.from(entry.value as Map));
+        }).toList();
+      } else {
+        _patients = [];
+      }
+      notifyListeners();
+    }, onError: (error) {
+      _error = "Error loading patients: $error";
+      notifyListeners();
+    });
   }
 
   void listenToAlerts() {
@@ -110,14 +147,12 @@ class FirebaseService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> signUpWithEmailAndPassword(String email, String password, String name, File image) async {
+  Future<void> signUpWithEmailAndPassword(String email, String password, String name) async {
     try {
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(email: email, password: password);
       User user = userCredential.user!;
 
-      String imageUrl = await _uploadProfileImage(user.uid, image);
-      
-      Doctor newUser = Doctor(uid: user.uid, name: name, email: email, imageUrl: imageUrl);
+      Doctor newUser = Doctor(uid: user.uid, name: name, email: email, imageUrl: '');
       await _database.ref('doctors/${user.uid}').set(newUser.toMap());
       _currentDoctor = newUser;
 
@@ -128,13 +163,6 @@ class FirebaseService extends ChangeNotifier {
     } catch (e) {
       throw Exception("Une erreur inattendue est survenue: $e");
     }
-  }
-
-  Future<String> _uploadProfileImage(String uid, File image) async {
-    Reference storageRef = _storage.ref().child('profile_images').child('$uid.jpg');
-    UploadTask uploadTask = storageRef.putFile(image);
-    TaskSnapshot snapshot = await uploadTask;
-    return await snapshot.ref.getDownloadURL();
   }
 
   Future<void> signInWithEmailAndPassword(String email, String password) async {
@@ -168,7 +196,7 @@ class FirebaseService extends ChangeNotifier {
         .orderByKey()
         .limitToLast(limit)
         .onValue
-        .listen((event) async { // Correction: Ajout de 'async'
+        .listen((event) async { 
       _error = null;
       if (event.snapshot.value != null) {
         final values = Map<String, dynamic>.from(event.snapshot.value as Map);
@@ -180,7 +208,6 @@ class FirebaseService extends ChangeNotifier {
         
         if (_historyData.isNotEmpty) {
           _latestData = _historyData.first;
-          // Correction: Ajout de 'await' pour gérer l'opération asynchrone
           await _checkForAlerts(_latestData!);
         }
 
@@ -197,13 +224,11 @@ class FirebaseService extends ChangeNotifier {
     });
   }
 
-  // Nouvelle méthode pour vérifier et créer des alertes
   Future<void> _checkForAlerts(PatientData data) async {
     if (patientId == null) return;
 
     Alert? newAlert;
 
-    // Règle 1: Alerte critique pour la fréquence cardiaque
     if (data.heartRate > 120 || data.heartRate < 50) {
       newAlert = Alert(
         id: 'bpm_${data.timestamp.millisecondsSinceEpoch}',
@@ -213,7 +238,6 @@ class FirebaseService extends ChangeNotifier {
         level: AlertLevel.Critical,
       );
     }
-    // Règle 2: Alerte critique pour la saturation en oxygène
     else if (data.spo2 < 90) {
       newAlert = Alert(
         id: 'spo2_${data.timestamp.millisecondsSinceEpoch}',
@@ -224,7 +248,6 @@ class FirebaseService extends ChangeNotifier {
       );
     }
 
-    // Si une nouvelle alerte a été créée, on l'enregistre dans Firebase
     if (newAlert != null) {
       try {
         DatabaseReference alertRef = _database.ref('patients/$patientId/alerts/${newAlert.id}');
@@ -311,6 +334,7 @@ class FirebaseService extends ChangeNotifier {
   void dispose() {
     _historySubscription?.cancel();
     _alertsSubscription?.cancel();
+    _patientsSubscription?.cancel();
     super.dispose();
   }
 }
