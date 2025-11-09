@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   const CustomAppBar({super.key});
@@ -15,6 +17,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ),
+      leading: IconButton(
+        icon: const Icon(Icons.menu, color: Colors.white),
+        onPressed: () => Scaffold.of(context).openDrawer(),
+      ),
       title: const Text(
         'Patient Monitor',
         style: TextStyle(
@@ -26,6 +32,21 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       centerTitle: true,
       elevation: 0,
       backgroundColor: Colors.transparent,
+      actions: [
+        Consumer<ThemeProvider>(
+          builder: (context, themeProvider, child) {
+            return IconButton(
+              icon: Icon(
+                themeProvider.themeMode == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode,
+                color: Colors.white,
+              ),
+              onPressed: () {
+                themeProvider.toggleTheme();
+              },
+            );
+          },
+        ),
+      ],
     );
   }
 

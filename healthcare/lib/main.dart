@@ -12,6 +12,9 @@ import 'screens/main_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/real_time_monitor.dart';
 import 'screens/alerts_screen.dart';
+import 'screens/report_screen.dart';
+import 'screens/statistics_screen.dart';
+import 'screens/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +84,9 @@ class MyApp extends StatelessWidget {
               '/history': (context) => const HistoryScreen(),
               '/monitor': (context) => const RealTimeMonitor(),
               '/alerts': (context) => const AlertsScreen(),
+              '/profile': (context) => const ProfileScreen(),
+              '/report': (context) => const ReportScreen(),
+              '/statistics': (context) => const StatisticsScreen(),
             },
           );
         },

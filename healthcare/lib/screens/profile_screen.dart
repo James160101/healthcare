@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firebase_service.dart';
 import '../providers/theme_provider.dart';
+import '../models/doctor.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -12,10 +13,10 @@ class ProfileScreen extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final doctor = firebaseService.currentDoctor;
 
+    final String initial = doctor?.name.isNotEmpty == true ? doctor!.name[0].toUpperCase() : '?';
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil'),
-      ),
+      appBar: AppBar(title: const Text('Profil')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -26,12 +27,11 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 40,
-                    backgroundImage: doctor.imageUrl != null
-                        ? NetworkImage(doctor.imageUrl!)
-                        : null,
-                    child: doctor.imageUrl == null
-                        ? const Icon(Icons.person, size: 40)
-                        : null,
+                    backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                    child: Text(
+                      initial,
+                      style: TextStyle(fontSize: 32, color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold),
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Column(
@@ -58,7 +58,7 @@ class ProfileScreen extends StatelessWidget {
               title: const Text('Mode Sombre'),
               value: themeProvider.themeMode == ThemeMode.dark,
               onChanged: (value) {
-                themeProvider.setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
+                themeProvider.toggleTheme();
               },
             ),
             const SizedBox(height: 32),
@@ -66,7 +66,9 @@ class ProfileScreen extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () async {
                   await firebaseService.signOut();
-                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                  if (context.mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                  }
                 },
                 child: const Text('Déconnexion'),
               ),

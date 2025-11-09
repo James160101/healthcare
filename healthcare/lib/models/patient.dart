@@ -1,7 +1,7 @@
 class Patient {
   final String id;
   final String name;
-  final int age;
+  final DateTime birthDate; // Remplacer l'âge par la date de naissance
   final int height;
   final int weight;
   final String phone;
@@ -11,7 +11,7 @@ class Patient {
   Patient({
     required this.id,
     required this.name,
-    required this.age,
+    required this.birthDate,
     required this.height,
     required this.weight,
     required this.phone,
@@ -19,11 +19,24 @@ class Patient {
     required this.imageUrl,
   });
 
+  // Calculer l'âge dynamiquement
+  int get age {
+    final now = DateTime.now();
+    int age = now.year - birthDate.year;
+    if (now.month < birthDate.month || (now.month == birthDate.month && now.day < birthDate.day)) {
+      age--;
+    }
+    return age;
+  }
+
   factory Patient.fromMap(String id, Map<String, dynamic> data) {
     return Patient(
       id: id,
       name: data['name'] ?? '',
-      age: data['age'] ?? 0,
+      // Convertir le timestamp de la base de données en DateTime
+      birthDate: data['birthDate'] != null 
+          ? DateTime.fromMillisecondsSinceEpoch(data['birthDate'] as int)
+          : DateTime.now(),
       height: data['height'] ?? 0,
       weight: data['weight'] ?? 0,
       phone: data['phone'] ?? '',
@@ -35,7 +48,8 @@ class Patient {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
-      'age': age,
+      // Stocker la date de naissance comme un timestamp
+      'birthDate': birthDate.millisecondsSinceEpoch,
       'height': height,
       'weight': weight,
       'phone': phone,

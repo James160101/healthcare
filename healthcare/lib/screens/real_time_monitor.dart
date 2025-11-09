@@ -24,7 +24,8 @@ class RealTimeMonitor extends StatelessWidget {
             return _buildErrorState(context, service.error!);
           }
 
-          if (service.patientId == null || service.historyData.isEmpty) {
+          // Afficher les données en direct même si l'historique est vide au début
+          if (service.patientId == null || service.latestData == null) {
             return _buildWaitingState(service.patientId == null
                 ? "Veuillez sélectionner un patient."
                 : "En attente des données du patient...");
@@ -270,7 +271,12 @@ class RealTimeMonitor extends StatelessWidget {
             Text(error, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () => context.read<FirebaseService>().loadHistory(),
+              onPressed: () {
+                final service = context.read<FirebaseService>();
+                if (service.patientId != null) {
+                  service.selectPatient(service.patientId!); // On relance toute la sélection
+                }
+              },
               icon: const Icon(Icons.refresh),
               label: const Text('Réessayer'),
             ),

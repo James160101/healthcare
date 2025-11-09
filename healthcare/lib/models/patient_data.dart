@@ -20,6 +20,14 @@ class PatientData {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'timestamp': timestamp.millisecondsSinceEpoch ~/ 1000,
+      'heartRate': heartRate,
+      'spo2': spo2,
+    };
+  }
+
   // --- Getters for Status --- //
 
   String get heartRateStatus {
