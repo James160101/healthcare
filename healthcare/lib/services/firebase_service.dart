@@ -33,7 +33,7 @@ class FirebaseService extends ChangeNotifier {
   PatientData? _latestData;
   List<PatientData> _historyData = [];
   List<Alert> _alerts = [];
-  int _unreadAlertsCount = 0; // Compteur pour les alertes non lues
+  int _unreadAlertsCount = 0;
 
   PatientData? get latestData => _latestData;
   List<PatientData> get historyData => _historyData;
@@ -87,6 +87,14 @@ class FirebaseService extends ChangeNotifier {
     });
   }
 
+  Patient? getPatientById(String id) {
+    try {
+      return _allPatients.firstWhere((p) => p.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
+
   void selectPatient(String newPatientId) {
     if (patientId == newPatientId) {
       _clearPatientData();
@@ -98,7 +106,6 @@ class FirebaseService extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
     }
-
     listenToDeviceAndCopyData();
     listenToPatientHistory();
     listenToAlerts();
@@ -106,23 +113,16 @@ class FirebaseService extends ChangeNotifier {
 
   void listenToDeviceAndCopyData() {
     _deviceDataSubscription?.cancel();
-    _deviceDataSubscription = _database
-        .ref('patients/$_deviceId/measurements')
-        .orderByKey()
-        .limitToLast(1)
-        .onValue
-        .listen((event) async {
+    _deviceDataSubscription = _database.ref('patients/$_deviceId/measurements').orderByKey().limitToLast(1).onValue.listen((event) async {
       if (event.snapshot.exists && event.snapshot.value != null) {
         final data = Map<String, dynamic>.from(event.snapshot.value as Map);
         final lastEntry = data.entries.first;
         final newMeasurement = PatientData.fromMap(Map<String, dynamic>.from(lastEntry.value as Map));
-
         if (patientId != null) {
           final patientHistoryRef = _database.ref('patients/$patientId/measurements').push();
           await patientHistoryRef.set(newMeasurement.toMap());
           await _checkForAlerts(newMeasurement);
         }
-
         _latestData = newMeasurement;
         notifyListeners();
       }
@@ -132,12 +132,7 @@ class FirebaseService extends ChangeNotifier {
   void listenToPatientHistory() {
     if (patientId == null) return;
     _patientHistorySubscription?.cancel();
-    _patientHistorySubscription = _database
-        .ref('patients/$patientId/measurements')
-        .orderByKey()
-        .limitToLast(50)
-        .onValue
-        .listen((event) {
+    _patientHistorySubscription = _database.ref('patients/$patientId/measurements').orderByKey().onValue.listen((event) {
       _error = null;
       if (event.snapshot.exists && event.snapshot.value != null) {
         final values = Map<String, dynamic>.from(event.snapshot.value as Map);
@@ -152,41 +147,44 @@ class FirebaseService extends ChangeNotifier {
       notifyListeners();
     }, onError: (err) {
       _error = "Erreur: $err";
-       _isLoading = false;
+      _isLoading = false;
       notifyListeners();
     });
   }
 
+  Map<String, dynamic> getStatistics() {
+    if (historyData.isEmpty) return {'avgBpm': 0, 'minBpm': 0, 'maxBpm': 0, 'avgSpo2': 0.0, 'minSpo2': 0.0, 'maxSpo2': 0.0,};
+    final bpms = historyData.map((d) => d.heartRate).toList();
+    final spo2s = historyData.map((d) => d.spo2).toList();
+    return {
+      'avgBpm': (bpms.reduce((a, b) => a + b) / bpms.length).round(),
+      'minBpm': bpms.reduce((a, b) => a < b ? a : b),
+      'maxBpm': bpms.reduce((a, b) => a > b ? a : b),
+      'avgSpo2': spo2s.reduce((a, b) => a + b) / spo2s.length,
+      'minSpo2': spo2s.reduce((a, b) => a < b ? a : b),
+      'maxSpo2': spo2s.reduce((a, b) => a > b ? a : b),
+    };
+  }
+
   Future<void> _checkForAlerts(PatientData data) async {
     if (patientId == null) return;
-
-    Patient? patient;
-    try {
-      patient = _allPatients.firstWhere((p) => p.id == patientId);
-    } catch (e) { return; }
-
+    Patient? patient = getPatientById(patientId!);
+    if (patient == null) return;
     Alert? newAlert;
-    String message = '';
-
     if (data.heartRate > 120 || data.heartRate < 50) {
-      message = 'Valeur anormale pour ${patient.name}: ${data.heartRate} BPM. Contacter la famille au ${patient.familyContact}';
-      newAlert = Alert(id: 'bpm_${data.timestamp.millisecondsSinceEpoch}', timestamp: data.timestamp, type: 'Fréquence Cardiaque', message: message, level: AlertLevel.Critical, isRead: false);
+      newAlert = Alert(id: 'bpm_${data.timestamp.millisecondsSinceEpoch}', timestamp: data.timestamp, type: 'Fréquence Cardiaque', message: 'Valeur anormale pour ${patient.name}: ${data.heartRate} BPM. Contacter la famille au ${patient.familyContact}', level: AlertLevel.Critical, isRead: false);
     } else if (data.spo2 < 90) {
-      message = 'Niveau de SpO2 bas pour ${patient.name}: ${data.spo2.toStringAsFixed(0)}%. Contacter la famille au ${patient.familyContact}';
-      newAlert = Alert(id: 'spo2_${data.timestamp.millisecondsSinceEpoch}', timestamp: data.timestamp, type: 'Saturation O2', message: message, level: AlertLevel.Critical, isRead: false);
+      newAlert = Alert(id: 'spo2_${data.timestamp.millisecondsSinceEpoch}', timestamp: data.timestamp, type: 'Saturation O2', message: 'Niveau de SpO2 bas pour ${patient.name}: ${data.spo2.toStringAsFixed(0)}%. Contacter la famille au ${patient.familyContact}', level: AlertLevel.Critical, isRead: false);
     }
-
     if (newAlert != null) {
       try {
-        DatabaseReference alertRef = _database.ref('patients/$patientId/alerts/${newAlert.id}');
-        await alertRef.set(newAlert.toMap());
-      } catch (e) { /* ... */ }
+        await _database.ref('patients/$patientId/alerts/${newAlert.id}').set(newAlert.toMap());
+      } catch (e) { /* Gérer l'erreur */ }
     }
   }
 
   void listenToAlerts() {
     if (patientId == null) return;
-
     _alertsSubscription?.cancel();
     _alertsSubscription = _database.ref('patients/$patientId/alerts').onValue.listen((event) {
       if (event.snapshot.exists && event.snapshot.value != null) {
@@ -208,8 +206,6 @@ class FirebaseService extends ChangeNotifier {
         _database.ref('patients/$patientId/alerts/${alert.id}').update({'isRead': true});
       }
     }
-    _unreadAlertsCount = 0;
-    notifyListeners();
   }
   
   void _clearPatientData() {
@@ -222,16 +218,71 @@ class FirebaseService extends ChangeNotifier {
     _patientHistorySubscription?.cancel();
   }
 
-  // --- Reste des méthodes ---
-  Future<void> addPatient(Patient patient) async { /*...*/ }
-  Future<void> updatePatient(Patient patient) async { /*...*/ }
-  Future<void> deletePatient(String patientId) async { /*...*/ }
-  void searchPatients(String query) { /*...*/ }
-  Future<void> _fetchDoctorProfile(String uid) async { /*...*/ }
-  Future<void> signUpWithEmailAndPassword(String email, String password, String name) async { /*...*/ }
-  Future<void> signInWithEmailAndPassword(String email, String password) async { /*...*/ }
-  Future<void> signOut() async { /*...*/ }
-  void _handleAuthError(FirebaseAuthException e) { /*...*/ }
+  Future<void> addPatient(Patient patient) async {
+    try {
+      await _database.ref('patients').push().set(patient.toMap());
+    } catch (e) { throw Exception("Erreur: $e"); }
+  }
+
+  Future<void> updatePatient(Patient patient) async {
+    try {
+      await _database.ref('patients/${patient.id}').update(patient.toMap());
+    } catch (e) { throw Exception("Erreur: $e"); }
+  }
+
+  Future<void> deletePatient(String patientId) async {
+    try {
+      await _database.ref('patients/$patientId').remove();
+    } catch (e) { throw Exception("Erreur: $e"); }
+  }
+
+  void searchPatients(String query) {
+    _patients = query.isEmpty ? List.from(_allPatients) : _allPatients.where((p) => p.name.toLowerCase().contains(query.toLowerCase())).toList();
+    notifyListeners();
+  }
+
+  Future<void> _fetchDoctorProfile(String uid) async {
+    try {
+      final snapshot = await _database.ref('doctors/$uid').get();
+      if (snapshot.exists) {
+        _currentDoctor = Doctor.fromMap(Map<String, dynamic>.from(snapshot.value as Map), uid);
+      } else {
+        final email = currentUser?.email ?? '';
+        final name = email.split('@')[0];
+        _currentDoctor = Doctor(uid: uid, name: name, email: email, imageUrl: '');
+        await _database.ref('doctors/$uid').set(_currentDoctor!.toMap());
+      }
+    } catch (e) { _error = "Erreur: $e"; notifyListeners(); }
+  }
+
+  Future<void> signUpWithEmailAndPassword(String email, String password, String name) async {
+    try {
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      Doctor newUser = Doctor(uid: userCredential.user!.uid, name: name, email: email, imageUrl: '');
+      await _database.ref('doctors/${newUser.uid}').set(newUser.toMap());
+      _currentDoctor = newUser;
+      notifyListeners();
+    } on FirebaseAuthException catch (e) { _handleAuthError(e); } catch (e) { throw Exception("Erreur: $e"); }
+  }
+
+  Future<void> signInWithEmailAndPassword(String email, String password) async {
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+    } on FirebaseAuthException catch (e) { _handleAuthError(e); }
+  }
+
+  Future<void> signOut() async {
+    await _auth.signOut();
+    _clearPatientData();
+  }
+
+  void _handleAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'weak-password': throw Exception('Mot de passe trop faible.');
+      case 'email-already-in-use': throw Exception('Cet email est déjà utilisé.');
+      default: throw Exception("Erreur d'authentification.");
+    }
+  }
 
   @override
   void dispose() {
