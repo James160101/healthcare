@@ -22,7 +22,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         onPressed: () => Scaffold.of(context).openDrawer(),
       ),
       title: const Text(
-        'Patient Monitor',
+        'Surveillance Cardiaque',
         style: TextStyle(
           fontFamily: 'cursive',
           fontWeight: FontWeight.bold,

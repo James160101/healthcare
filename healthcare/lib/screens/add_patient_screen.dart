@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:numberpicker/numberpicker.dart';
 import '../models/patient.dart';
 import '../services/firebase_service.dart';
 
@@ -77,22 +76,13 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     }
   }
 
-  void _showDatePicker(BuildContext context) {
+  void _showModalPicker(BuildContext context, Widget child) {
     showCupertinoModalPopup(
       context: context,
       builder: (_) => Container(
         height: 250,
         color: Colors.white,
-        child: CupertinoDatePicker(
-          mode: CupertinoDatePickerMode.date,
-          initialDateTime: _birthDate,
-          maximumDate: DateTime.now(),
-          onDateTimeChanged: (DateTime newDate) {
-            setState(() {
-              _birthDate = newDate;
-            });
-          },
-        ),
+        child: child,
       ),
     );
   }
@@ -109,9 +99,36 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
           child: ListView(
             children: [
               _buildTextRow('Nom', _nameController, validator: (v) => v!.isEmpty ? 'Nom requis' : null),
-              _buildDateRow(context, 'Naissance', _birthDate),
-              _buildPickerRow('Taille', 'cm', _currentHeight, 50, 250, (v) => setState(() => _currentHeight = v)),
-              _buildPickerRow('Poids', 'kg', _currentWeight, 10, 200, (v) => setState(() => _currentWeight = v)),
+              _buildPickerRow(context, 'Naissance', DateFormat('d MMMM yyyy', 'fr_FR').format(_birthDate), () {
+                _showModalPicker(context,
+                  CupertinoDatePicker(
+                    mode: CupertinoDatePickerMode.date,
+                    initialDateTime: _birthDate,
+                    maximumDate: DateTime.now(),
+                    onDateTimeChanged: (newDate) => setState(() => _birthDate = newDate),
+                  ),
+                );
+              }),
+              _buildPickerRow(context, 'Taille', '$_currentHeight cm', () {
+                 _showModalPicker(context,
+                  CupertinoPicker(
+                    scrollController: FixedExtentScrollController(initialItem: _currentHeight - 50),
+                    itemExtent: 32.0,
+                    onSelectedItemChanged: (index) => setState(() => _currentHeight = index + 50),
+                    children: List<Widget>.generate(201, (index) => Center(child: Text('${index + 50}'))),
+                  ),
+                );
+              }),
+               _buildPickerRow(context, 'Poids', '$_currentWeight kg', () {
+                 _showModalPicker(context,
+                  CupertinoPicker(
+                    scrollController: FixedExtentScrollController(initialItem: _currentWeight - 10),
+                    itemExtent: 32.0,
+                    onSelectedItemChanged: (index) => setState(() => _currentWeight = index + 10),
+                    children: List<Widget>.generate(191, (index) => Center(child: Text('${index + 10}'))),
+                  ),
+                );
+              }),
               _buildTextRow('Téléphone', _phoneController, keyboard: TextInputType.phone, validator: (v) => v!.isEmpty ? 'Numéro requis' : null),
               _buildTextRow('Famille', _familyContactController, keyboard: TextInputType.phone, validator: (v) => v!.isEmpty ? 'Contact requis' : null),
               const SizedBox(height: 32),
@@ -149,7 +166,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     );
   }
 
-  Widget _buildDateRow(BuildContext context, String label, DateTime date) {
+  Widget _buildPickerRow(BuildContext context, String label, String value, VoidCallback onPressed) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -157,33 +174,9 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
         children: [
           Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
           TextButton(
-            onPressed: () => _showDatePicker(context),
-            child: Text(DateFormat('d MMMM yyyy', 'fr_FR').format(date)),
+            onPressed: onPressed,
+            child: Text(value),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPickerRow(String label, String unit, int value, int min, int max, ValueChanged<int> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        children: [
-          Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-          const Spacer(),
-          NumberPicker(
-            value: value,
-            minValue: min,
-            maxValue: max,
-            step: 1,
-            itemHeight: 40, // Plus compact
-            itemWidth: 60,  // Plus compact
-            onChanged: onChanged,
-            axis: Axis.horizontal,
-            haptics: true,
-          ),
-          Text(unit, style: const TextStyle(fontSize: 16, color: Colors.grey)),
         ],
       ),
     );
