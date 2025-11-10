@@ -45,9 +45,11 @@ class CustomDrawer extends StatelessWidget {
               ],
             ),
           ),
-          _buildDrawerItem(context, icon: Icons.bar_chart, text: 'Rapport', route: '/report'),
           _buildDrawerItem(context, icon: Icons.person_outline, text: 'Profil', route: '/profile'),
-          _buildDrawerItem(context, icon: Icons.notifications_none, text: 'Alertes', route: '/alerts'),
+          _buildDrawerItem(context, icon: Icons.notifications_none, text: 'Alertes', route: '/alerts', onTap: () {
+            service.markAlertsAsRead();
+            Navigator.pushNamed(context, '/alerts');
+          }),
           _buildDrawerItem(context, icon: Icons.stacked_line_chart, text: 'Statistiques', route: '/statistics'),
           const Divider(),
           ListTile(
@@ -63,14 +65,15 @@ class CustomDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildDrawerItem(BuildContext context, {required IconData icon, required String text, required String route}) {
+  Widget _buildDrawerItem(BuildContext context, {required IconData icon, required String text, String? route, VoidCallback? onTap}) {
     return ListTile(
       leading: Icon(icon),
       title: Text(text),
       onTap: () {
         Navigator.of(context).pop(); // Ferme le drawer
-        // Navigue si la route actuelle n'est pas celle de destination
-        if (ModalRoute.of(context)?.settings.name != route) {
+        if (onTap != null) {
+          onTap();
+        } else if (route != null && ModalRoute.of(context)?.settings.name != route) {
           Navigator.pushNamed(context, route);
         }
       },
