@@ -11,10 +11,9 @@ class FirebaseService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
 
-  final String _deviceId = "PATIENT_001";
+  final List<String> _knownDeviceIds = ["PATIENT_001"]; // Liste des ID d'appareils connus
 
   StreamSubscription? _deviceDataSubscription;
-  StreamSubscription? _patientHistorySubscription;
   StreamSubscription? _alertsSubscription;
   StreamSubscription? _patientsSubscription;
 
@@ -28,7 +27,10 @@ class FirebaseService extends ChangeNotifier {
 
   List<Patient> _allPatients = [];
   List<Patient> _patients = [];
+  List<String> _deviceIds = [];
+
   List<Patient> get patients => _patients;
+  List<String> get deviceIds => _deviceIds;
 
   PatientData? _latestData;
   List<PatientData> _historyData = [];
@@ -51,7 +53,6 @@ class FirebaseService extends ChangeNotifier {
 
   Future<void> _onAuthStateChanged(User? user) async {
     _deviceDataSubscription?.cancel();
-    _patientHistorySubscription?.cancel();
     _alertsSubscription?.cancel();
     _patientsSubscription?.cancel();
 
@@ -63,25 +64,38 @@ class FirebaseService extends ChangeNotifier {
       _allPatients = [];
     } else {
       await _fetchDoctorProfile(user.uid);
-      listenToPatients();
+      listenToPatientsAndDevices();
     }
     notifyListeners();
   }
 
-  void listenToPatients() {
+  void listenToPatientsAndDevices() {
     _patientsSubscription?.cancel();
     _patientsSubscription = _database.ref('patients').onValue.listen((event) {
       if (event.snapshot.exists && event.snapshot.value != null) {
         final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-        _allPatients = data.entries
-            .where((entry) => entry.key != _deviceId)
-            .map((entry) {
-              return Patient.fromMap(entry.key, Map<String, dynamic>.from(entry.value as Map));
-            }).toList();
+        
+        List<Patient> tempPatients = [];
+        List<String> tempDevices = [];
+
+        data.forEach((key, value) {
+          // Un appareil est une entrée dont l'ID est dans notre liste connue
+          if (_knownDeviceIds.contains(key)) {
+            tempDevices.add(key);
+          } else {
+            // Le reste est considéré comme un patient
+            tempPatients.add(Patient.fromMap(key, Map<String, dynamic>.from(value as Map)));
+          }
+        });
+
+        _allPatients = tempPatients;
         _patients = List.from(_allPatients);
+        _deviceIds = tempDevices;
+
       } else {
         _allPatients = [];
         _patients = [];
+        _deviceIds = [];
       }
       notifyListeners();
     });
@@ -96,43 +110,28 @@ class FirebaseService extends ChangeNotifier {
   }
 
   void selectPatient(String newPatientId) {
-    if (patientId == newPatientId) {
-      _clearPatientData();
-      _isLoading = true;
-      notifyListeners();
-    } else {
-      patientId = newPatientId;
-      _clearPatientData();
-      _isLoading = true;
-      notifyListeners();
-    }
-    listenToDeviceAndCopyData();
-    listenToPatientHistory();
+    patientId = newPatientId;
+    _clearPatientData();
+    _isLoading = true;
+    notifyListeners();
+
+    listenToDeviceData();
     listenToAlerts();
   }
 
-  void listenToDeviceAndCopyData() {
-    _deviceDataSubscription?.cancel();
-    _deviceDataSubscription = _database.ref('patients/$_deviceId/measurements').orderByKey().limitToLast(1).onValue.listen((event) async {
-      if (event.snapshot.exists && event.snapshot.value != null) {
-        final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-        final lastEntry = data.entries.first;
-        final newMeasurement = PatientData.fromMap(Map<String, dynamic>.from(lastEntry.value as Map));
-        if (patientId != null) {
-          final patientHistoryRef = _database.ref('patients/$patientId/measurements').push();
-          await patientHistoryRef.set(newMeasurement.toMap());
-          await _checkForAlerts(newMeasurement);
-        }
-        _latestData = newMeasurement;
-        notifyListeners();
-      }
-    });
-  }
-
-  void listenToPatientHistory() {
+  void listenToDeviceData() {
     if (patientId == null) return;
-    _patientHistorySubscription?.cancel();
-    _patientHistorySubscription = _database.ref('patients/$patientId/measurements').orderByKey().onValue.listen((event) {
+
+    final patient = getPatientById(patientId!);
+    if (patient == null || patient.deviceId.isEmpty) {
+      _error = "Ce patient n'a pas d'appareil assigné.";
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
+
+    _deviceDataSubscription?.cancel();
+    _deviceDataSubscription = _database.ref('patients/${patient.deviceId}/measurements').orderByKey().limitToLast(50).onValue.listen((event) async {
       _error = null;
       if (event.snapshot.exists && event.snapshot.value != null) {
         final values = Map<String, dynamic>.from(event.snapshot.value as Map);
@@ -140,8 +139,14 @@ class FirebaseService extends ChangeNotifier {
           final valueMap = Map<String, dynamic>.from(e.value as Map);
           return PatientData.fromMap(valueMap);
         }).toList()..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+        if (_historyData.isNotEmpty) {
+          _latestData = _historyData.first;
+          await _checkForAlerts(_latestData!);
+        }
       } else {
         _historyData = [];
+        _latestData = null;
       }
       _isLoading = false;
       notifyListeners();
@@ -215,7 +220,6 @@ class FirebaseService extends ChangeNotifier {
     _unreadAlertsCount = 0;
     _error = null;
     _deviceDataSubscription?.cancel();
-    _patientHistorySubscription?.cancel();
   }
 
   Future<void> addPatient(Patient patient) async {
@@ -287,7 +291,6 @@ class FirebaseService extends ChangeNotifier {
   @override
   void dispose() {
     _deviceDataSubscription?.cancel();
-    _patientHistorySubscription?.cancel();
     _alertsSubscription?.cancel();
     _patientsSubscription?.cancel();
     super.dispose();

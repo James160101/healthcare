@@ -15,40 +15,50 @@ class StatisticsScreen extends StatelessWidget {
       return Scaffold(
         appBar: AppBar(title: const Text('Statistiques')),
         body: const Center(
-          child: Text('Veuillez d\'abord sélectionner un patient sur l\'écran d\'accueil.'),
+          child: Text("Veuillez d'abord sélectionner un patient sur l'écran d'accueil."),
         ),
       );
     }
 
-    // Utiliser la nouvelle méthode robuste
     final Patient? patient = service.getPatientById(patientId);
-
-    final stats = service.getStatistics();
 
     return Scaffold(
       appBar: AppBar(title: Text('Stats de ${patient?.name ?? "Patient"}')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildStatCard(
-              title: 'Rythme Cardiaque (BPM)',
-              avg: stats['avgBpm'].toString(),
-              min: stats['minBpm'].toString(),
-              max: stats['maxBpm'].toString(),
-              color: Colors.red.shade400,
+      body: Consumer<FirebaseService>(
+        builder: (context, service, child) {
+          if (service.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (service.historyData.isEmpty) {
+            return const Center(child: Text("Aucune donnée d'historique disponible."));
+          }
+
+          final stats = service.getStatistics();
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildStatCard(
+                  title: 'Rythme Cardiaque (BPM)',
+                  avg: stats['avgBpm'].toString(),
+                  min: stats['minBpm'].toString(),
+                  max: stats['maxBpm'].toString(),
+                  color: Colors.red.shade400,
+                ),
+                const SizedBox(height: 16),
+                _buildStatCard(
+                  title: 'Saturation en Oxygène (SpO2)',
+                  avg: '${stats['avgSpo2'].toStringAsFixed(1)} %',
+                  min: '${stats['minSpo2'].toStringAsFixed(1)} %',
+                  max: '${stats['maxSpo2'].toStringAsFixed(1)} %',
+                  color: Colors.blue.shade400,
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            _buildStatCard(
-              title: 'Saturation en Oxygène (SpO2)',
-              avg: '${stats['avgSpo2'].toStringAsFixed(1)} %',
-              min: '${stats['minSpo2'].toStringAsFixed(1)} %',
-              max: '${stats['maxSpo2'].toStringAsFixed(1)} %',
-              color: Colors.blue.shade400,
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

@@ -1,12 +1,13 @@
 class Patient {
   final String id;
   final String name;
-  final DateTime birthDate; // Remplacer l'âge par la date de naissance
+  final DateTime birthDate;
   final int height;
   final int weight;
   final String phone;
   final String familyContact;
   final String imageUrl;
+  final String deviceId; // ID de l'appareil (ESP32) associé
 
   Patient({
     required this.id,
@@ -17,9 +18,9 @@ class Patient {
     required this.phone,
     required this.familyContact,
     required this.imageUrl,
+    required this.deviceId,
   });
 
-  // Calculer l'âge dynamiquement
   int get age {
     final now = DateTime.now();
     int age = now.year - birthDate.year;
@@ -33,7 +34,6 @@ class Patient {
     return Patient(
       id: id,
       name: data['name'] ?? '',
-      // Convertir le timestamp de la base de données en DateTime
       birthDate: data['birthDate'] != null 
           ? DateTime.fromMillisecondsSinceEpoch(data['birthDate'] as int)
           : DateTime.now(),
@@ -42,19 +42,20 @@ class Patient {
       phone: data['phone'] ?? '',
       familyContact: data['familyContact'] ?? '',
       imageUrl: data['imageUrl'] ?? '',
+      deviceId: data['deviceId'] ?? '', // Récupérer l'ID de l'appareil
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'name': name,
-      // Stocker la date de naissance comme un timestamp
       'birthDate': birthDate.millisecondsSinceEpoch,
       'height': height,
       'weight': weight,
       'phone': phone,
       'familyContact': familyContact,
       'imageUrl': imageUrl,
+      'deviceId': deviceId, // Sauvegarder l'ID de l'appareil
     };
   }
 }
