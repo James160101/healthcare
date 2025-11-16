@@ -177,9 +177,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Nom: ${patient.name}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    Text('Âge: ${patient.age}', style: const TextStyle(color: Colors.white)), // Utilise le getter pour l'âge
-                    Text('Taille: $heightInMeters m', style: const TextStyle(color: Colors.white)), // Affiche en mètres
+                    Text('Âge: ${patient.age}', style: const TextStyle(color: Colors.white)),
+                    Text('Taille: $heightInMeters m', style: const TextStyle(color: Colors.white)),
                     Text('Poids: ${patient.weight}kg', style: const TextStyle(color: Colors.white)),
+                    Text('Adresse: ${patient.address}', style: const TextStyle(color: Colors.white)),
                     Text('Téléphone: ${patient.phone}', style: const TextStyle(color: Colors.white)),
                   ],
                 ),

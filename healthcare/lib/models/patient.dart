@@ -6,8 +6,9 @@ class Patient {
   final int weight;
   final String phone;
   final String familyContact;
+  final String address; // Ajout de l'adresse
   final String imageUrl;
-  final String deviceId; // ID de l'appareil (ESP32) associé
+  final String deviceId;
 
   Patient({
     required this.id,
@@ -17,6 +18,7 @@ class Patient {
     required this.weight,
     required this.phone,
     required this.familyContact,
+    required this.address,
     required this.imageUrl,
     required this.deviceId,
   });
@@ -41,8 +43,9 @@ class Patient {
       weight: data['weight'] ?? 0,
       phone: data['phone'] ?? '',
       familyContact: data['familyContact'] ?? '',
+      address: data['address'] ?? '',
       imageUrl: data['imageUrl'] ?? '',
-      deviceId: data['deviceId'] ?? '', // Récupérer l'ID de l'appareil
+      deviceId: data['deviceId'] ?? '',
     );
   }
 
@@ -54,8 +57,9 @@ class Patient {
       'weight': weight,
       'phone': phone,
       'familyContact': familyContact,
+      'address': address,
       'imageUrl': imageUrl,
-      'deviceId': deviceId, // Sauvegarder l'ID de l'appareil
+      'deviceId': deviceId,
     };
   }
 }
