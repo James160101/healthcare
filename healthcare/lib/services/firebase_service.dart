@@ -7,11 +7,13 @@ import '../models/patient.dart';
 import '../models/patient_data.dart';
 import '../models/alert.dart';
 
+enum HistoryRange { day, week, month, all }
+
 class FirebaseService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
 
-  final List<String> _knownDeviceIds = ["PATIENT_001"]; // Liste des ID d'appareils connus
+  final List<String> _knownDeviceIds = ["PATIENT_001"];
 
   StreamSubscription? _deviceDataSubscription;
   StreamSubscription? _alertsSubscription;
@@ -33,6 +35,7 @@ class FirebaseService extends ChangeNotifier {
   List<String> get deviceIds => _deviceIds;
 
   PatientData? _latestData;
+  List<PatientData> _fullHistoryData = [];
   List<PatientData> _historyData = [];
   List<Alert> _alerts = [];
   int _unreadAlertsCount = 0;
@@ -55,7 +58,6 @@ class FirebaseService extends ChangeNotifier {
     _deviceDataSubscription?.cancel();
     _alertsSubscription?.cancel();
     _patientsSubscription?.cancel();
-
     if (user == null) {
       _currentDoctor = null;
       patientId = null;
@@ -74,24 +76,18 @@ class FirebaseService extends ChangeNotifier {
     _patientsSubscription = _database.ref('patients').onValue.listen((event) {
       if (event.snapshot.exists && event.snapshot.value != null) {
         final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-        
         List<Patient> tempPatients = [];
         List<String> tempDevices = [];
-
         data.forEach((key, value) {
-          // Un appareil est une entrée dont l'ID est dans notre liste connue
           if (_knownDeviceIds.contains(key)) {
             tempDevices.add(key);
           } else {
-            // Le reste est considéré comme un patient
             tempPatients.add(Patient.fromMap(key, Map<String, dynamic>.from(value as Map)));
           }
         });
-
         _allPatients = tempPatients;
         _patients = List.from(_allPatients);
         _deviceIds = tempDevices;
-
       } else {
         _allPatients = [];
         _patients = [];
@@ -114,14 +110,12 @@ class FirebaseService extends ChangeNotifier {
     _clearPatientData();
     _isLoading = true;
     notifyListeners();
-
     listenToDeviceData();
     listenToAlerts();
   }
 
   void listenToDeviceData() {
     if (patientId == null) return;
-
     final patient = getPatientById(patientId!);
     if (patient == null || patient.deviceId.isEmpty) {
       _error = "Ce patient n'a pas d'appareil assigné.";
@@ -129,22 +123,18 @@ class FirebaseService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-
     _deviceDataSubscription?.cancel();
-    _deviceDataSubscription = _database.ref('patients/${patient.deviceId}/measurements').orderByKey().limitToLast(50).onValue.listen((event) async {
+    _deviceDataSubscription = _database.ref('patients/${patient.deviceId}/measurements').orderByKey().onValue.listen((event) async {
       _error = null;
       if (event.snapshot.exists && event.snapshot.value != null) {
         final values = Map<String, dynamic>.from(event.snapshot.value as Map);
-        _historyData = values.entries.map((e) {
-          final valueMap = Map<String, dynamic>.from(e.value as Map);
-          return PatientData.fromMap(valueMap);
-        }).toList()..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
+        _fullHistoryData = values.entries.map((e) => PatientData.fromMap(Map<String, dynamic>.from(e.value as Map))).toList()..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        filterHistoryByRange(HistoryRange.all); // Appliquer le filtre par défaut
         if (_historyData.isNotEmpty) {
           _latestData = _historyData.first;
-          await _checkForAlerts(_latestData!);
         }
       } else {
+        _fullHistoryData = [];
         _historyData = [];
         _latestData = null;
       }
@@ -155,6 +145,22 @@ class FirebaseService extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     });
+  }
+
+  void filterHistoryByRange(HistoryRange range) {
+    final now = DateTime.now();
+    DateTime startDate;
+    switch (range) {
+      case HistoryRange.day: startDate = now.subtract(const Duration(days: 1)); break;
+      case HistoryRange.week: startDate = now.subtract(const Duration(days: 7)); break;
+      case HistoryRange.month: startDate = now.subtract(const Duration(days: 30)); break;
+      case HistoryRange.all:
+        _historyData = List.from(_fullHistoryData);
+        notifyListeners();
+        return;
+    }
+    _historyData = _fullHistoryData.where((record) => record.timestamp.isAfter(startDate)).toList();
+    notifyListeners();
   }
 
   Map<String, dynamic> getStatistics() {
@@ -215,6 +221,7 @@ class FirebaseService extends ChangeNotifier {
   
   void _clearPatientData() {
     _historyData = [];
+    _fullHistoryData = [];
     _latestData = null;
     _alerts = [];
     _unreadAlertsCount = 0;
@@ -272,7 +279,9 @@ class FirebaseService extends ChangeNotifier {
   Future<void> signInWithEmailAndPassword(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
-    } on FirebaseAuthException catch (e) { _handleAuthError(e); }
+    } on FirebaseAuthException catch (e) {
+      rethrow;
+    }
   }
 
   Future<void> signOut() async {
@@ -282,6 +291,9 @@ class FirebaseService extends ChangeNotifier {
 
   void _handleAuthError(FirebaseAuthException e) {
     switch (e.code) {
+      case 'user-not-found': throw Exception('Aucun utilisateur trouvé.');
+      case 'wrong-password': throw Exception('Mot de passe incorrect.');
+      case 'invalid-email': throw Exception('Email non valide.');
       case 'weak-password': throw Exception('Mot de passe trop faible.');
       case 'email-already-in-use': throw Exception('Cet email est déjà utilisé.');
       default: throw Exception("Erreur d'authentification.");

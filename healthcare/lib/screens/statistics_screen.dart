@@ -40,6 +40,12 @@ class StatisticsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(
+                  'Statistiques pour ${patient?.name ?? "le patient"}',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
                 _buildStatCard(
                   title: 'Rythme Cardiaque (BPM)',
                   avg: stats['avgBpm'].toString(),
