@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'services/firebase_service.dart';
+import 'services/location_service.dart';
 import 'providers/theme_provider.dart';
-import 'screens/auth/auth_wrapper.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 import 'screens/main_screen.dart';
@@ -14,6 +14,7 @@ import 'screens/real_time_monitor.dart';
 import 'screens/alerts_screen.dart';
 import 'screens/statistics_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,11 +34,12 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => FirebaseService()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LocationService()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
-            title: 'Surveillance Cardiaque',
+            title: 'Système de Télésurveillance Médicale',
             debugShowCheckedModeBanner: false,
             themeMode: themeProvider.themeMode,
             localizationsDelegates: const [
@@ -73,8 +75,7 @@ class MyApp extends StatelessWidget {
                 primary: primaryColor,
               ),
             ),
-
-            home: const AuthWrapper(),
+            home: const SplashScreen(),
             routes: {
               '/login': (context) => const LoginScreen(),
               '/signup': (context) => const SignupScreen(),

@@ -18,28 +18,41 @@ class ImageSlideshow extends StatefulWidget {
 class _ImageSlideshowState extends State<ImageSlideshow> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
-  late Timer _timer;
+  Timer? _timer; // Rendre le timer nullable
 
   @override
   void initState() {
     super.initState();
+    // Lancer le timer uniquement après le premier build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startTimer();
+    });
+  }
+
+  void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
+      if (!mounted) return; // Ne rien faire si le widget n'est plus à l'écran
+
       if (_currentPage < widget.images.length - 1) {
         _currentPage++;
       } else {
         _currentPage = 0;
       }
-      _pageController.animateToPage(
-        _currentPage,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeIn,
-      );
+      
+      // Vérifier si le pageController est toujours attaché
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          _currentPage,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeIn,
+        );
+      }
     });
   }
 
   @override
   void dispose() {
-    _timer.cancel();
+    _timer?.cancel(); // Annuler le timer s'il existe
     _pageController.dispose();
     super.dispose();
   }
@@ -48,12 +61,15 @@ class _ImageSlideshowState extends State<ImageSlideshow> {
   Widget build(BuildContext context) {
     return SizedBox(
       height: 200,
-      child: PageView.builder(
-        controller: _pageController,
-        itemCount: widget.images.length,
-        itemBuilder: (BuildContext context, int index) {
-          return Image.asset(widget.images[index], fit: BoxFit.cover);
-        },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: PageView.builder(
+          controller: _pageController,
+          itemCount: widget.images.length,
+          itemBuilder: (BuildContext context, int index) {
+            return Image.asset(widget.images[index], fit: BoxFit.cover);
+          },
+        ),
       ),
     );
   }

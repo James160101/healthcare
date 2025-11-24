@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:intl/date_symbol_data_local.dart'; // Import pour l'initialisation des locales
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:url_launcher/url_launcher.dart'; // Import pour lancer appels/SMS
 import '../services/firebase_service.dart';
 import '../models/alert.dart';
+import '../models/patient.dart';
 
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
@@ -16,8 +18,39 @@ class _AlertsScreenState extends State<AlertsScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialisation des données de localisation pour le français
     initializeDateFormatting('fr_FR', null);
+  }
+
+  // Fonction pour lancer un appel
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
+    if (await canLaunchUrl(launchUri)) {
+      await launchUrl(launchUri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Impossible de lancer l'appel.")),
+        );
+      }
+    }
+  }
+
+  // Fonction pour envoyer un SMS
+  Future<void> _sendSms(String phoneNumber, String body) async {
+    final Uri launchUri = Uri(
+      scheme: 'sms',
+      path: phoneNumber,
+      queryParameters: {'body': body}, // Texte pré-rempli
+    );
+    if (await canLaunchUrl(launchUri)) {
+      await launchUrl(launchUri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Impossible d'ouvrir l'application SMS.")),
+        );
+      }
+    }
   }
 
   @override
@@ -41,6 +74,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
               ),
             );
           }
+
+          // Récupérer les infos du patient actuel pour avoir les numéros
+          final Patient? currentPatient = service.getPatientById(service.patientId ?? '');
 
           return ListView.builder(
             itemCount: service.alerts.length,
@@ -89,11 +125,63 @@ class _AlertsScreenState extends State<AlertsScreen> {
                       '${alert.type}: ${alert.message}',
                       style: const TextStyle(fontSize: 15, height: 1.4),
                     ),
+                    const SizedBox(height: 16),
+                    
+                    // --- BOUTONS D'URGENCE ---
+                    if (currentPatient != null) 
+                      Column(
+                        children: [
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              // Bouton Appel Patient
+                              if (currentPatient.phone.isNotEmpty)
+                                ElevatedButton.icon(
+                                  onPressed: () => _makePhoneCall(currentPatient.phone),
+                                  icon: const Icon(Icons.call, size: 20),
+                                  label: const Text("Patient"),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  ),
+                                ),
+
+                              // Bouton Appel Famille
+                              if (currentPatient.familyContact.isNotEmpty)
+                                ElevatedButton.icon(
+                                  onPressed: () => _makePhoneCall(currentPatient.familyContact),
+                                  icon: const Icon(Icons.family_restroom, size: 20),
+                                  label: const Text("Famille"),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  ),
+                                ),
+                                
+                              // Bouton SMS Urgence
+                              if (currentPatient.familyContact.isNotEmpty)
+                                IconButton(
+                                  onPressed: () => _sendSms(
+                                    currentPatient.familyContact, 
+                                    "URGENCE - Hôpital: Le patient ${currentPatient.name} présente une anomalie (${alert.type}). Merci de nous contacter."
+                                  ),
+                                  icon: const Icon(Icons.message),
+                                  color: Colors.orange.shade800,
+                                  tooltip: "Envoyer SMS Famille",
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      
                     const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.bottomRight,
                       child: Text(
-                        // Utilisation de la locale française pour le formatage
                         DateFormat('EEEE d MMMM y', 'fr_FR').format(alert.timestamp),
                         style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                       ),

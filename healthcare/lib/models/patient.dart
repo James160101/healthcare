@@ -1,3 +1,5 @@
+import './patient_data.dart';
+
 class Patient {
   final String id;
   final String name;
@@ -6,9 +8,10 @@ class Patient {
   final int weight;
   final String phone;
   final String familyContact;
-  final String address; // Ajout de l'adresse
+  final String address;
   final String imageUrl;
   final String deviceId;
+  final PatientData? latestData;
 
   Patient({
     required this.id,
@@ -21,6 +24,7 @@ class Patient {
     required this.address,
     required this.imageUrl,
     required this.deviceId,
+    this.latestData,
   });
 
   int get age {
@@ -46,6 +50,9 @@ class Patient {
       address: data['address'] ?? '',
       imageUrl: data['imageUrl'] ?? '',
       deviceId: data['deviceId'] ?? '',
+      latestData: data.containsKey('latest') && data['latest'] != null
+          ? PatientData.fromMap(Map<String, dynamic>.from(data['latest'] as Map))
+          : null,
     );
   }
 

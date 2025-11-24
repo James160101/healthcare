@@ -13,6 +13,7 @@ class FirebaseService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
 
+  // Liste des IDs considérés comme des "appareils" et non des patients créés via l'app
   final List<String> _knownDeviceIds = ["PATIENT_001"];
 
   StreamSubscription? _deviceDataSubscription;
@@ -78,13 +79,39 @@ class FirebaseService extends ChangeNotifier {
         final data = Map<String, dynamic>.from(event.snapshot.value as Map);
         List<Patient> tempPatients = [];
         List<String> tempDevices = [];
+        Map<String, dynamic> deviceDataMap = {};
+
+        // 1. Identifier les appareils et stocker leurs données
         data.forEach((key, value) {
           if (_knownDeviceIds.contains(key)) {
             tempDevices.add(key);
-          } else {
-            tempPatients.add(Patient.fromMap(key, Map<String, dynamic>.from(value as Map)));
+            deviceDataMap[key] = value;
           }
         });
+
+        // 2. Créer les patients en leur associant les données de leur appareil si possible
+        data.forEach((key, value) {
+          if (!_knownDeviceIds.contains(key)) {
+            var patientMap = Map<String, dynamic>.from(value as Map);
+            
+            // Si le patient a un deviceId renseigné (ex: PATIENT_001)
+            if (patientMap.containsKey('deviceId')) {
+              String devId = patientMap['deviceId'];
+              // Si on a des données pour cet appareil
+              if (deviceDataMap.containsKey(devId)) {
+                 var devData = Map<String, dynamic>.from(deviceDataMap[devId] as Map);
+                 // On injecte le noeud 'latest' de l'appareil dans les données du patient
+                 // pour que le modèle Patient puisse lire la dernière activité
+                 if (devData.containsKey('latest')) {
+                    patientMap['latest'] = devData['latest'];
+                 }
+              }
+            }
+
+            tempPatients.add(Patient.fromMap(key, patientMap));
+          }
+        });
+
         _allPatients = tempPatients;
         _patients = List.from(_allPatients);
         _deviceIds = tempDevices;
@@ -124,12 +151,13 @@ class FirebaseService extends ChangeNotifier {
       return;
     }
     _deviceDataSubscription?.cancel();
+    // On écoute directement le noeud de l'appareil (ex: patients/PATIENT_001/measurements)
     _deviceDataSubscription = _database.ref('patients/${patient.deviceId}/measurements').orderByKey().onValue.listen((event) async {
       _error = null;
       if (event.snapshot.exists && event.snapshot.value != null) {
         final values = Map<String, dynamic>.from(event.snapshot.value as Map);
         _fullHistoryData = values.entries.map((e) => PatientData.fromMap(Map<String, dynamic>.from(e.value as Map))).toList()..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-        filterHistoryByRange(HistoryRange.all); // Appliquer le filtre par défaut
+        filterHistoryByRange(HistoryRange.all);
         if (_historyData.isNotEmpty) {
           _latestData = _historyData.first;
         }

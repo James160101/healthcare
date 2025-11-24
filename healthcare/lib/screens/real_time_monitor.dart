@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import '../services/firebase_service.dart';
+import '../services/location_service.dart';
 import '../models/patient.dart';
 import '../models/patient_data.dart';
-import 'history_screen.dart'; // Importer l'écran d'historique
+import 'history_screen.dart';
+import 'patient_location_screen.dart';
+import '../widgets/heartbeat_loader.dart'; 
 
 class RealTimeMonitor extends StatelessWidget {
   const RealTimeMonitor({super.key});
@@ -20,7 +23,7 @@ class RealTimeMonitor extends StatelessWidget {
       body: Consumer<FirebaseService>(
         builder: (context, service, _) {
           if (service.isLoading && service.historyData.isEmpty) {
-            return _buildWaitingState("Chargement des données...");
+            return HeartbeatLoader(size: 80, color: Colors.red, message: "Connexion à l'appareil...");
           }
 
           if (service.error != null) {
@@ -28,9 +31,13 @@ class RealTimeMonitor extends StatelessWidget {
           }
 
           if (service.patientId == null || service.latestData == null) {
-            return _buildWaitingState(service.patientId == null
+            return HeartbeatLoader(
+              size: 80, 
+              color: Colors.red, 
+              message: service.patientId == null
                 ? "Veuillez sélectionner un patient."
-                : "En attente des données du patient...");
+                : "En attente des données du patient..."
+            );
           }
 
           final history = service.historyData;
@@ -72,7 +79,37 @@ class RealTimeMonitor extends StatelessWidget {
                       ],
                     ),
                   ],
-                )
+                ),
+                const SizedBox(height: 32),
+                
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      if (patient != null) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => PatientLocationScreen(
+                              patientName: patient.name,
+                              patientId: patient.id,
+                            ),
+                          ),
+                        );
+                      } else {
+                         ScaffoldMessenger.of(context).showSnackBar(
+                           const SnackBar(content: Text('Patient non identifié')),
+                         );
+                      }
+                    },
+                    icon: const Icon(Icons.map, size: 28),
+                    label: const Text('Voir la localisation sur la carte', style: TextStyle(fontSize: 18)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      backgroundColor: Colors.blue.shade600,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
               ],
             ),
           );
@@ -90,7 +127,6 @@ class RealTimeMonitor extends StatelessWidget {
 
   Widget _buildEcgChart(BuildContext context, List<PatientData> history) {
     final recentHistory = history.take(60).toList().reversed.toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -181,19 +217,6 @@ class RealTimeMonitor extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
       child: Text(status, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
-    );
-  }
-
-  Widget _buildWaitingState(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(message, style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
-        ],
-      ),
     );
   }
 

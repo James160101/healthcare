@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../services/firebase_service.dart';
 import '../models/patient_data.dart';
+import '../widgets/heartbeat_loader.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -23,22 +24,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     final service = Provider.of<FirebaseService>(context, listen: false);
     final patientName = service.patientId != null ? service.getPatientById(service.patientId!)?.name : null;
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(patientName != null ? 'Historique de $patientName' : 'Historique')),
+      appBar: AppBar(
+        title: Text(patientName != null ? 'Historique: $patientName' : 'Historique médical'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: theme.colorScheme.onSurface,
+      ),
       body: Consumer<FirebaseService>(
         builder: (context, service, _) {
           if (service.isLoading && service.historyData.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(child: HeartbeatLoader(size: 60, color: theme.colorScheme.primary, message: "Chargement..."));
           }
           if (service.historyData.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history_toggle_off, size: 80, color: Colors.grey.shade400),
+                  Icon(Icons.query_stats, size: 80, color: Colors.grey.shade300),
                   const SizedBox(height: 16),
-                  const Text('Aucune donnée d\'historique disponible', style: TextStyle(fontSize: 16)),
+                  Text('Aucune donnée disponible pour cette période', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
                 ],
               ),
             );
@@ -46,16 +53,39 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
           return Column(
             children: [
-              _buildFilterButtons(service),
+              const SizedBox(height: 16),
+              _buildModernFilterBar(service, theme),
+              const SizedBox(height: 16),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildHistoryChart(title: 'Fréquence Cardiaque', history: service.historyData, dataExtractor: (data) => _clampValue(data.heartRate.toDouble(), 40, 180), color: Colors.red, minY: 40, maxY: 180, unit: 'BPM'),
+                      _buildHistoryChartCard(
+                        theme,
+                        title: 'Fréquence Cardiaque',
+                        history: service.historyData,
+                        dataExtractor: (data) => _clampValue(data.heartRate.toDouble(), 40, 180),
+                        color: Colors.redAccent,
+                        minY: 40,
+                        maxY: 180,
+                        unit: ' BPM',
+                        icon: Icons.favorite,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildHistoryChartCard(
+                        theme,
+                        title: 'Saturation Oxygène (SpO2)',
+                        history: service.historyData,
+                        dataExtractor: (data) => _clampValue(data.spo2, 80, 100),
+                        color: Colors.blueAccent,
+                        minY: 80,
+                        maxY: 100,
+                        unit: '%',
+                        icon: Icons.water_drop,
+                      ),
                       const SizedBox(height: 32),
-                      _buildHistoryChart(title: 'Saturation O2', history: service.historyData, dataExtractor: (data) => _clampValue(data.spo2, 80, 100), color: Colors.blue, minY: 80, maxY: 100, unit: '%'),
                     ],
                   ),
                 ),
@@ -67,82 +97,176 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildFilterButtons(FirebaseService service) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+  Widget _buildModernFilterBar(FirebaseService service, ThemeData theme) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildFilterChip('Jour', HistoryRange.day, service),
-          _buildFilterChip('Semaine', HistoryRange.week, service),
-          _buildFilterChip('Mois', HistoryRange.month, service),
-          _buildFilterChip('Tout', HistoryRange.all, service),
+          _buildFilterButton('24h', HistoryRange.day, service, theme),
+          const SizedBox(width: 12),
+          _buildFilterButton('Semaine', HistoryRange.week, service, theme),
+          const SizedBox(width: 12),
+          _buildFilterButton('Mois', HistoryRange.month, service, theme),
+          const SizedBox(width: 12),
+          _buildFilterButton('Tout', HistoryRange.all, service, theme),
         ],
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, HistoryRange range, FirebaseService service) {
+  Widget _buildFilterButton(String label, HistoryRange range, FirebaseService service, ThemeData theme) {
     final isSelected = _selectedRange == range;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) {
-          setState(() {
-            _selectedRange = range;
-          });
-          service.filterHistoryByRange(range);
-        }
+    return InkWell(
+      onTap: () {
+        setState(() => _selectedRange = range);
+        service.filterHistoryByRange(range);
       },
-      selectedColor: Theme.of(context).primaryColor,
-      labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.primary : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected 
+              ? [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]
+              : [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
+          border: Border.all(color: isSelected ? Colors.transparent : Colors.grey.shade200),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildHistoryChart({required String title, required List<PatientData> history, required double Function(PatientData) dataExtractor, required Color color, required double minY, required double maxY, required String unit}) {
+  Widget _buildHistoryChartCard(
+      ThemeData theme, {
+      required String title,
+      required List<PatientData> history,
+      required double Function(PatientData) dataExtractor,
+      required Color color,
+      required double minY,
+      required double maxY,
+      required String unit,
+      required IconData icon,
+  }) {
     final chartData = history.reversed.toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 24),
-        SizedBox(
-          height: 250,
-          child: LineChart(
-            LineChartData(
-              minY: minY, maxY: maxY,
-              gridData: FlGridData(show: true, getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.2), strokeWidth: 1), drawVerticalLine: false),
-              titlesData: FlTitlesData(
-                show: true,
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (value, meta) => Text('${value.toInt()}$unit', style: const TextStyle(fontSize: 10)))),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true, reservedSize: 22, interval: (chartData.length / 4).ceilToDouble(),
-                    getTitlesWidget: (value, meta) {
-                      if (value.toInt() >= 0 && value.toInt() < chartData.length) {
-                        final time = chartData[value.toInt()].timestamp;
-                        return Text(DateFormat('HH:mm').format(time), style: const TextStyle(fontSize: 10));
-                      }
-                      return const Text('');
+    
+    // Calculer moyenne pour afficher
+    double avg = 0;
+    if (chartData.isNotEmpty) {
+       avg = chartData.map((e) => dataExtractor(e)).reduce((a, b) => a + b) / chartData.length;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                    child: Icon(icon, color: color, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              Text(
+                "Moy: ${avg.toStringAsFixed(1)}$unit",
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 220,
+            child: LineChart(
+              LineChartData(
+                minY: minY, maxY: maxY,
+                gridData: FlGridData(
+                  show: true, 
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.1), strokeWidth: 1, dashArray: [5, 5]),
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)), // Cleaner sans axe Y visible
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true, 
+                      reservedSize: 30, 
+                      interval: (chartData.length / 4).ceilToDouble(),
+                      getTitlesWidget: (value, meta) {
+                        if (value.toInt() >= 0 && value.toInt() < chartData.length) {
+                          final time = chartData[value.toInt()].timestamp;
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(DateFormat('HH:mm').format(time), style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                          );
+                        }
+                        return const Text('');
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    tooltipBgColor: Colors.blueGrey.shade900, // Correction ICI
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((LineBarSpot touchedSpot) {
+                        return LineTooltipItem(
+                          '${touchedSpot.y.toStringAsFixed(1)}$unit',
+                          const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        );
+                      }).toList();
                     },
                   ),
                 ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: [for (int i = 0; i < chartData.length; i++) FlSpot(i.toDouble(), dataExtractor(chartData[i]))],
+                    isCurved: true, 
+                    color: color, 
+                    barWidth: 3, 
+                    isStrokeCapRound: true, 
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true, 
+                      gradient: LinearGradient(
+                        colors: [color.withOpacity(0.2), color.withOpacity(0.0)], 
+                        begin: Alignment.topCenter, 
+                        end: Alignment.bottomCenter
+                      )
+                    ),
+                  ),
+                ],
               ),
-              borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.5))),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: [for (int i = 0; i < chartData.length; i++) FlSpot(i.toDouble(), dataExtractor(chartData[i]))],
-                  isCurved: true, color: color, barWidth: 2.5, isStrokeCapRound: true, dotData: const FlDotData(show: false),
-                  belowBarData: BarAreaData(show: true, gradient: LinearGradient(colors: [color.withOpacity(0.3), Colors.transparent], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-                ),
-              ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

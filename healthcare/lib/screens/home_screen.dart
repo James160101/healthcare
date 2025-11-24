@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firebase_service.dart';
 import '../models/patient.dart';
+import '../models/patient_data.dart';
 import '../widgets/image_slideshow.dart';
 import 'add_patient_screen.dart';
 import 'real_time_monitor.dart';
@@ -33,6 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 24),
             const ImageSlideshow(),
             const SizedBox(height: 24),
+            _buildDashboard(),
+            const SizedBox(height: 24),
             const Text(
               'Patients',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -50,6 +53,114 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         tooltip: 'Ajouter un patient',
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildDashboard() {
+    return Consumer<FirebaseService>(
+      builder: (context, service, child) {
+        int normalPatients = 0;
+        int mediumAlerts = 0;
+        int severeAlerts = 0;
+
+        for (var patient in service.patients) {
+          final data = patient.latestData;
+          if (data != null) {
+            if (data.isCritical) {
+              severeAlerts++;
+            } else if (!data.isNormal) {
+              mediumAlerts++;
+            } else {
+              normalPatients++;
+            }
+          } else {
+            normalPatients++;
+          }
+        }
+
+        return GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.8, // Adjust for a more rectangular look
+          children: [
+             _buildDashboardCard(
+              context: context,
+              title: 'Patients Totaux',
+              value: service.patients.length.toString(),
+              icon: Icons.people_outline,
+              color: Colors.blue,
+            ),
+            _buildDashboardCard(
+              context: context,
+              title: 'État Normal',
+              value: normalPatients.toString(),
+              icon: Icons.check_circle_outline,
+              color: Colors.green,
+            ),
+            _buildDashboardCard(
+              context: context,
+              title: 'Alerte Moyenne',
+              value: mediumAlerts.toString(),
+              icon: Icons.warning_amber_outlined,
+              color: Colors.orange,
+            ),
+            _buildDashboardCard(
+              context: context,
+              title: 'État Grave',
+              value: severeAlerts.toString(),
+              icon: Icons.dangerous_outlined,
+              color: Colors.red,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDashboardCard({
+    required BuildContext context,
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Icon(icon, size: 28, color: Colors.white),
+            ],
+          ),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Colors.white70,
+            ),
+          ),
+        ],
       ),
     );
   }
